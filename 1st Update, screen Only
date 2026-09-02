@@ -1,0 +1,607 @@
+<!-- Loads Bulma if your page doesn't already include it — remove this line if it does -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+<style>
+  :root{
+    --ink:#f4f4f4;
+    --p1:#e0555a;
+    --p2:#4f8ff0;
+  }
+
+  .reigame-wrap{
+    display:flex;
+    justify-content:center;
+    padding:20px 12px;
+    background:#e8e4da;
+    font-family:'Courier New', monospace;
+  }
+
+  .reigame-frame{
+    position:relative;
+    width:100%;
+    max-width:800px;
+    border-radius:6px;
+    overflow:hidden;
+    box-shadow:0 12px 40px rgba(0,0,0,0.18);
+    line-height:0;
+  }
+
+  #ring{
+    display:block;
+    background:#e8e4da;
+    width:100%;
+    height:auto;
+  }
+
+  /* ---- HUD overlay, drawn directly on top of the canvas ---- */
+  .reigame-hud{
+    position:absolute;
+    top:10px;
+    left:10px;
+    right:10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    pointer-events:none;
+  }
+
+  .reigame-bar{ flex:1; }
+
+  .reigame-track{
+    height:9px;
+    background:rgba(0,0,0,0.18);
+    border:1px solid rgba(0,0,0,0.25);
+    border-radius:2px;
+    overflow:hidden;
+  }
+
+  .reigame-fill{
+    height:100%;
+    transition:width 0.15s ease-out;
+  }
+
+  .reigame-fill-p1{ background:var(--p1); }
+  .reigame-fill-p2{ background:var(--p2); }
+
+  .reigame-bar.p2 .reigame-track{ direction:rtl; }
+
+  #timer{
+    color:#3a3a3a;
+    font-size:0.85rem;
+    min-width:26px;
+    text-align:center;
+  }
+
+  /* ---- End-of-round overlay ---- */
+  .reigame-msg{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    pointer-events:none;
+  }
+
+  .reigame-text{
+    color:#2b2b2b;
+    font-size:1.3rem;
+    margin:0 0 10px 0;
+    text-shadow:0 1px 6px rgba(255,255,255,0.8);
+  }
+
+  .reigame-restart{
+    display:none;
+    pointer-events:auto;
+  }
+
+  /* ---- Touch controls, overlaid on the canvas itself ---- */
+  .reigame-touch{
+    display:none;
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:10px;
+    justify-content:flex-end;
+    padding:0 12px;
+  }
+
+  @media (hover:none) and (pointer:coarse), (max-width:680px){
+    .reigame-touch{ display:flex; }
+  }
+
+  .reigame-cluster{
+    position:relative;
+    width:170px;
+    height:130px;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:none;
+  }
+
+  .reigame-btn{
+    position:absolute;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:52px;
+    height:52px;
+    border-radius:50%;
+    background:rgba(30,31,34,0.55);
+    border:1px solid rgba(255,255,255,0.25);
+    color:#f4f4f4;
+    font-size:1.15rem;
+    box-shadow:0 3px 0 rgba(0,0,0,0.25);
+    -webkit-tap-highlight-color:transparent;
+    backdrop-filter:blur(2px);
+  }
+
+  .reigame-btn:active,
+  .reigame-btn.reigame-active{
+    background:rgba(30,31,34,0.8);
+    box-shadow:0 1px 0 rgba(0,0,0,0.25);
+    transform:translateY(2px);
+  }
+
+  .reigame-move.left{  left:0;   top:39px; }
+  .reigame-move.right{ left:60px; top:39px; }
+
+  .reigame-punch{
+    right:0;
+    top:0;
+    background:rgba(90,35,35,0.65);
+  }
+
+  .reigame-jump{
+    right:0;
+    bottom:0;
+    background:rgba(34,52,79,0.65);
+  }
+</style>
+</head>
+
+<div class="reigame-wrap">
+  <div class="reigame-frame">
+    <canvas id="ring" width="780" height="360"></canvas>
+
+    <div class="reigame-hud">
+      <div class="reigame-bar p1">
+        <div class="reigame-track"><div class="reigame-fill reigame-fill-p1" id="hp1" style="width:100%"></div></div>
+      </div>
+      <span id="timer">60</span>
+      <div class="reigame-bar p2">
+        <div class="reigame-track"><div class="reigame-fill reigame-fill-p2" id="hp2" style="width:100%"></div></div>
+      </div>
+    </div>
+
+    <div class="reigame-msg">
+      <p class="reigame-text" id="msg"></p>
+      <button class="button is-small reigame-restart" id="restartBtn">Fight again</button>
+    </div>
+
+    <div class="reigame-touch">
+      <div class="reigame-cluster">
+        <button type="button" class="reigame-btn reigame-move left"  data-key="a">◀</button>
+        <button type="button" class="reigame-btn reigame-move right" data-key="d">▶</button>
+        <button type="button" class="reigame-btn reigame-punch"       data-key="w">👊</button>
+        <button type="button" class="reigame-btn reigame-jump"        data-key="s">⬆</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('ring');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const GROUND = H - 60;
+
+  const hp1El = document.getElementById('hp1');
+  const hp2El = document.getElementById('hp2');
+  const timerEl = document.getElementById('timer');
+  const msgEl = document.getElementById('msg');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const PUNCH_RANGE = 70;
+  const PUNCH_COOLDOWN = 32;   // frames
+  const PUNCH_ACTIVE = 8;      // frames the fist is "out"
+  const PUNCH_DAMAGE = 9;
+  const MOVE_SPEED = 3.4;
+  const ROUND_SECONDS = 60;
+  const JUMP_FORCE = -9.5;
+  const GRAVITY = 0.55;
+  const DODGE_HEIGHT = 12;     // airborne past this height dodges punches
+  const DASH_SPEED = 10;
+  const DASH_FRAMES = 9;       // how long the dash burst lasts
+  const DASH_COOLDOWN = 42;
+  const DASH_TAP_WINDOW = 260; // ms between taps to count as a double-tap
+
+  let gameOver = false;
+  let frame = 0;
+  let secondsLeft = ROUND_SECONDS;
+  let lastTickTime = performance.now();
+
+  function makeFighter(x, color, facing) {
+    return {
+      x, y: GROUND, w: 40, h: 76,
+      color, facing,           // 1 = facing right, -1 = facing left
+      hp: 100,
+      punching: 0,             // frames remaining of active punch
+      cooldown: 0,
+      hitFlash: 0,
+      stagger: 0,
+      jumpOffset: 0,           // 0 = grounded, negative = in the air
+      vy: 0,
+      isJumping: false,
+      dashFrames: 0,           // frames remaining in the current dash burst
+      dashDir: 0,
+      dashCooldown: 0
+    };
+  }
+
+  const p1 = makeFighter(220, '#e0555a', 1);
+  const p2 = makeFighter(560, '#4f8ff0', -1);
+
+  const keys = {};
+  const lastTapTime = { a: 0, d: 0 };
+
+  function tryStartDash(f, dir) {
+    if (f.dashCooldown > 0 || f.dashFrames > 0 || f.stagger > 0) return;
+    f.dashFrames = DASH_FRAMES;
+    f.dashDir = dir;
+    f.dashCooldown = DASH_COOLDOWN;
+  }
+
+  function checkDoubleTap(k) {
+    if (k !== 'a' && k !== 'd') return;
+    const now = performance.now();
+    if (now - lastTapTime[k] <= DASH_TAP_WINDOW) {
+      tryStartDash(p1, k === 'a' ? -1 : 1);
+    }
+    lastTapTime[k] = now;
+  }
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['w','a','s','d'].includes(k)) {
+      if (!keys[k]) checkDoubleTap(k);
+      keys[k] = true;
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (['w','a','s','d'].includes(k)) keys[k] = false;
+  });
+
+  // ---- Touch / on-screen controls ----
+  // Same "keys" object as the keyboard, so movement/punch/jump/dash logic is untouched.
+  document.querySelectorAll('.reigame-btn').forEach((btn) => {
+    const k = btn.getAttribute('data-key');
+
+    const press = (e) => {
+      e.preventDefault();
+      if (!keys[k]) checkDoubleTap(k);
+      keys[k] = true;
+      btn.classList.add('reigame-active');
+    };
+    const release = (e) => {
+      e.preventDefault();
+      keys[k] = false;
+      btn.classList.remove('reigame-active');
+    };
+
+    btn.addEventListener('touchstart', press, { passive: false });
+    btn.addEventListener('touchend', release, { passive: false });
+    btn.addEventListener('touchcancel', release, { passive: false });
+
+    // also works with mouse, e.g. touchscreen laptops / testing on desktop
+    btn.addEventListener('mousedown', press);
+    btn.addEventListener('mouseup', release);
+    btn.addEventListener('mouseleave', release);
+  });
+
+  restartBtn.addEventListener('click', resetMatch);
+
+  function resetMatch() {
+    p1.x = 220; p1.hp = 100; p1.cooldown = 0; p1.punching = 0; p1.hitFlash = 0; p1.stagger = 0; p1.jumpOffset = 0; p1.vy = 0; p1.isJumping = false; p1.dashFrames = 0; p1.dashCooldown = 0;
+    p2.x = 560; p2.hp = 100; p2.cooldown = 0; p2.punching = 0; p2.hitFlash = 0; p2.stagger = 0; p2.jumpOffset = 0; p2.vy = 0; p2.isJumping = false; p2.dashFrames = 0; p2.dashCooldown = 0;
+    secondsLeft = ROUND_SECONDS;
+    lastTickTime = performance.now();
+    gameOver = false;
+    msgEl.textContent = '';
+    restartBtn.style.display = 'none';
+    updateBars();
+  }
+
+  function updateBars() {
+    hp1El.style.width = Math.max(0, p1.hp) + '%';
+    hp2El.style.width = Math.max(0, p2.hp) + '%';
+  }
+
+  function distanceBetween() {
+    return Math.abs((p1.x) - (p2.x));
+  }
+
+  function tryLandPunch(attacker, defender) {
+    if (attacker.punching !== PUNCH_ACTIVE) return; // only checks on the frame the swing starts
+    const dist = distanceBetween();
+    const facingRight = attacker.facing === 1 ? attacker.x < defender.x : attacker.x > defender.x;
+    if (dist <= PUNCH_RANGE && facingRight) {
+      if (defender.jumpOffset <= -DODGE_HEIGHT || defender.dashFrames > 0) return; // dodged
+      defender.hp -= PUNCH_DAMAGE;
+      defender.hitFlash = 8;
+      defender.stagger = 8;
+    }
+  }
+
+  function startJump(f) {
+    if (!f.isJumping) {
+      f.isJumping = true;
+      f.vy = JUMP_FORCE;
+    }
+  }
+
+  function applyJumpPhysics(f) {
+    if (f.isJumping) {
+      f.vy += GRAVITY;
+      f.jumpOffset += f.vy;
+      if (f.jumpOffset >= 0) {
+        f.jumpOffset = 0;
+        f.vy = 0;
+        f.isJumping = false;
+      }
+    }
+  }
+
+  // ---- Player control ----
+  function updatePlayer() {
+    if (p1.dashCooldown > 0) p1.dashCooldown--;
+
+    if (p1.dashFrames > 0) {
+      p1.x += DASH_SPEED * p1.dashDir;
+      p1.dashFrames--;
+    } else if (p1.stagger > 0) {
+      p1.stagger--;
+    } else {
+      if (keys['a']) p1.x -= MOVE_SPEED;
+      if (keys['d']) p1.x += MOVE_SPEED;
+    }
+    p1.facing = p1.x < p2.x ? 1 : -1;
+
+    if (keys['s']) startJump(p1);
+    applyJumpPhysics(p1);
+
+    if (p1.cooldown > 0) p1.cooldown--;
+    if (p1.punching > 0) p1.punching--;
+
+    if (keys['w'] && p1.cooldown === 0 && p1.dashFrames === 0) {
+      p1.punching = PUNCH_ACTIVE;
+      p1.cooldown = PUNCH_COOLDOWN;
+    }
+
+    tryLandPunch(p1, p2);
+
+    p1.x = Math.max(40, Math.min(W - 40, p1.x));
+  }
+
+  // ---- Simple AI opponent ----
+  let aiState = 'approach';
+  let aiTimer = 0;
+
+  function updateAI() {
+    if (p2.dashCooldown > 0) p2.dashCooldown--;
+
+    if (p2.dashFrames > 0) {
+      p2.x += DASH_SPEED * p2.dashDir;
+      p2.dashFrames--;
+    } else if (p2.stagger > 0) {
+      p2.stagger--;
+    }
+
+    p2.facing = p2.x < p1.x ? 1 : -1;
+
+    if (p2.cooldown > 0) p2.cooldown--;
+    if (p2.punching > 0) p2.punching--;
+
+    aiTimer--;
+    if (aiTimer <= 0) {
+      const dist = distanceBetween();
+      const roll = Math.random();
+
+      if (dist > PUNCH_RANGE + 10) {
+        aiState = 'approach';
+      } else if (dist < PUNCH_RANGE - 30) {
+        aiState = roll < 0.4 ? 'retreat' : 'attack';
+      } else {
+        aiState = roll < 0.55 ? 'attack' : (roll < 0.8 ? 'jump' : 'retreat');
+      }
+      aiTimer = 18 + Math.floor(Math.random() * 30);
+    }
+
+    applyJumpPhysics(p2);
+
+    // dodge a punch that's about to land, sometimes — jump or backdash
+    if (p1.punching > 0 && p1.punching < PUNCH_ACTIVE && distanceBetween() <= PUNCH_RANGE + 10) {
+      const dodgeRoll = Math.random();
+      if (dodgeRoll < 0.05) startJump(p2);
+      else if (dodgeRoll < 0.10) tryStartDash(p2, p2.x > p1.x ? 1 : -1);
+    }
+
+    if (p2.stagger === 0 && p2.dashFrames === 0) {
+      if (aiState === 'approach') {
+        p2.x += (p2.x > p1.x ? -1 : 1) * MOVE_SPEED * 0.9;
+      } else if (aiState === 'retreat') {
+        p2.x += (p2.x > p1.x ? 1 : -1) * MOVE_SPEED * 0.8;
+      } else if (aiState === 'jump') {
+        startJump(p2);
+      } else if (aiState === 'attack') {
+        const dist = distanceBetween();
+        if (dist <= PUNCH_RANGE + 6 && p2.cooldown === 0) {
+          p2.punching = PUNCH_ACTIVE;
+          p2.cooldown = PUNCH_COOLDOWN + 6;
+        } else if (dist > PUNCH_RANGE) {
+          p2.x += (p2.x > p1.x ? -1 : 1) * MOVE_SPEED * 0.9;
+        }
+      }
+    }
+
+    tryLandPunch(p2, p1);
+
+    p2.x = Math.max(40, Math.min(W - 40, p2.x));
+  }
+
+  function checkRoundEnd() {
+    if (gameOver) return;
+    if (p1.hp <= 0 || p2.hp <= 0) {
+      gameOver = true;
+      if (p1.hp <= 0 && p2.hp <= 0) msgEl.textContent = 'Double knockout';
+      else if (p1.hp <= 0) msgEl.textContent = 'CPU wins by KO';
+      else msgEl.textContent = 'You win by KO';
+      restartBtn.style.display = 'inline-block';
+    } else if (secondsLeft <= 0) {
+      gameOver = true;
+      if (p1.hp > p2.hp) msgEl.textContent = 'You win on points';
+      else if (p2.hp > p1.hp) msgEl.textContent = 'CPU wins on points';
+      else msgEl.textContent = 'Draw';
+      restartBtn.style.display = 'inline-block';
+    }
+  }
+
+  function updateTimer(now) {
+    if (gameOver) return;
+    if (now - lastTickTime >= 1000) {
+      lastTickTime = now;
+      secondsLeft = Math.max(0, secondsLeft - 1);
+      timerEl.textContent = secondsLeft;
+    }
+  }
+
+  // ---- Drawing ----
+  function drawRing() {
+    ctx.fillStyle = '#e8e4da';
+    ctx.fillRect(0, 0, W, H);
+
+    // canvas mat
+    ctx.fillStyle = '#d8d2c2';
+    ctx.fillRect(0, GROUND, W, H - GROUND);
+
+    // mat lines
+    ctx.strokeStyle = '#c7c0ac';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 30) {
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+
+    // ropes
+    ctx.strokeStyle = '#c0524f';
+    ctx.lineWidth = 3;
+    [0.28, 0.4, 0.52].forEach((f) => {
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND * f);
+      ctx.lineTo(W, GROUND * f);
+      ctx.stroke();
+    });
+
+    // corner posts
+    ctx.fillStyle = '#b3453f';
+    ctx.fillRect(6, GROUND * 0.22, 10, GROUND * 0.8);
+    ctx.fillRect(W - 16, GROUND * 0.22, 10, GROUND * 0.8);
+  }
+
+  function drawFighter(f) {
+    // dash trail — a few faded afterimages behind the movement
+    if (f.dashFrames > 0) {
+      for (let i = 1; i <= 3; i++) {
+        ctx.save();
+        ctx.globalAlpha = 0.12 * (4 - i);
+        ctx.fillStyle = f.color;
+        const trailX = f.x - f.dashDir * i * 10;
+        const trailY = f.y - f.h + f.jumpOffset;
+        ctx.fillRect(trailX - 16, trailY + 14, 32, 40);
+        ctx.restore();
+      }
+    }
+
+    ctx.save();
+    const flashOn = f.hitFlash > 0 && Math.floor(f.hitFlash / 2) % 2 === 0;
+    const bodyColor = flashOn ? '#ffffff' : f.color;
+    if (f.hitFlash > 0) f.hitFlash--;
+
+    const bob = f.stagger > 0 ? Math.sin(frame * 0.9) * 3 : 0;
+    const baseY = f.y - f.h + bob + f.jumpOffset;
+
+    // shadow (shrinks and fades the higher the jump)
+    const airFactor = Math.min(1, -f.jumpOffset / 60);
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.15 * (1 - airFactor * 0.7)) + ')';
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y + 6, 20 * (1 - airFactor * 0.4), 6 * (1 - airFactor * 0.4), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // legs
+    ctx.fillStyle = '#2b2b2b';
+    ctx.fillRect(f.x - 14, baseY + 48, 10, 28);
+    ctx.fillRect(f.x + 4, baseY + 48, 10, 28);
+
+    // torso
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(f.x - 16, baseY + 14, 32, 40);
+
+    // head
+    ctx.fillStyle = '#e8c9a0';
+    ctx.fillRect(f.x - 10, baseY, 20, 18);
+
+    // guard block indicator (raised gloves near face)
+    const punchOut = f.punching > 0 ? 16 * f.facing : 0;
+
+    // back arm/glove (guard position)
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(f.x - 16 - (f.facing === 1 ? 4 : 0), baseY + 12, 10, 16);
+
+    // front arm/glove (the punching one)
+    ctx.save();
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(f.x + (f.facing === 1 ? 6 : -16) + punchOut, baseY + 16, 10, 14);
+    ctx.restore();
+
+    // gloves (fists)
+    ctx.fillStyle = '#c0392b';
+    const fistX = f.x + (f.facing === 1 ? 6 : -16) + punchOut + (f.facing === 1 ? 8 : -4);
+    ctx.beginPath();
+    ctx.arc(fistX, baseY + 22, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    const backFistX = f.x - 16 - (f.facing === 1 ? 4 : 0) + (f.facing === 1 ? -2 : 8);
+    ctx.beginPath();
+    ctx.arc(backFistX, baseY + 18, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function draw() {
+    drawRing();
+    drawFighter(p1);
+    drawFighter(p2);
+  }
+
+  function loop(now) {
+    frame++;
+    if (!gameOver) {
+      updatePlayer();
+      updateAI();
+      updateBars();
+      updateTimer(now);
+      checkRoundEnd();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  updateBars();
+  requestAnimationFrame(loop);
+})();
+</script>
