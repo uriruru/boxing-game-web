@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ring — Boxing Match</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+<style>
+  :root{
+    --ink:#f4f4f4;
+    --dim:#8a8d93;
+    --p1:#e0555a;
+    --p2:#4f8ff0;
+    --panel:#1a1b1d;
+    --line:#2a2b2e;
+  }
+
+  body{
+    background:#111214;
+    font-family:'Courier New', monospace;
+  }
+
+  .hero-band{
+    background:#111214;
+    border-bottom:1px solid var(--line);
+  }
+
+  .hero-band .title, .hero-band .subtitle{
+    color:var(--ink);
+    font-family:'Courier New', monospace;
+  }
+
+  .hero-band .subtitle{ color:var(--dim); }
+
+  .stage-wrap{
+    display:flex;
+    justify-content:center;
+    padding:2rem 1rem;
+  }
+
+  .stage-frame{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:14px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.45);
+    width:100%;
+    max-width:800px;
+  }
+
+  #ring{
+    display:block;
+    background:#e8e4da;
+    border-radius:2px;
+    width:100%;
+    height:auto;
+  }
+
+  .hud{
+    max-width:800px;
+    margin:0 auto;
+    padding:0 4px 12px 4px;
+  }
+
+  .bars{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:6px;
+  }
+
+  .bar-block{ flex:1; }
+
+  .bar-label{
+    display:flex;
+    justify-content:space-between;
+    color:var(--dim);
+    font-size:0.72rem;
+    margin-bottom:3px;
+    letter-spacing:0.02em;
+  }
+
+  .bar-track{
+    height:10px;
+    background:#232427;
+    border:1px solid var(--line);
+    border-radius:2px;
+    overflow:hidden;
+  }
+
+  .bar-fill{
+    height:100%;
+    transition:width 0.15s ease-out;
+  }
+
+  .fill-p1{ background:var(--p1); }
+  .fill-p2{ background:var(--p2); }
+
+  .bar-block.p2 .bar-track{ direction:rtl; }
+
+  .center-row{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    color:var(--ink);
+    font-size:1.1rem;
+    padding:2px 0 8px 0;
+  }
+
+  .keys{
+    max-width:800px;
+    margin:0 auto;
+    display:flex;
+    justify-content:space-between;
+    color:var(--dim);
+    font-size:0.75rem;
+    padding-top:8px;
+  }
+
+  .key{
+    display:inline-block;
+    min-width:20px;
+    text-align:center;
+    padding:2px 6px;
+    background:#232427;
+    border:1px solid #34363a;
+    border-bottom:2px solid #34363a;
+    border-radius:3px;
+    color:#e8e8e8;
+    font-size:0.72rem;
+  }
+
+  .overlay-msg{
+    text-align:center;
+    color:var(--ink);
+    font-size:1.4rem;
+    padding:6px 0 0 0;
+    min-height:1.6em;
+  }
+
+  .btn-restart{
+    display:none;
+    margin:10px auto 0 auto;
+  }
+
+  .footer-note{
+    text-align:center;
+    color:#5c5f66;
+    font-size:0.75rem;
+    padding:1.5rem 0 2rem 0;
+  }
+</style>
+</head>
+<body>
+
+<section class="hero-band py-6">
+  <div class="container has-text-centered">
+    <h1 class="title is-3">Ring</h1>
+    <p class="subtitle is-6">one round · first to zero loses</p>
+  </div>
+</section>
+
+<div class="hud">
+  <div class="bars">
+    <div class="bar-block p1">
+      <div class="bar-label"><span>YOU</span><span id="hp1Label">100</span></div>
+      <div class="bar-track"><div class="bar-fill fill-p1" id="hp1" style="width:100%"></div></div>
+    </div>
+    <div class="bar-block p2">
+      <div class="bar-label"><span id="hp2Label">100</span><span>CPU</span></div>
+      <div class="bar-track"><div class="bar-fill fill-p2" id="hp2" style="width:100%"></div></div>
+    </div>
+  </div>
+  <div class="center-row">
+    <span id="timer">60</span>
+  </div>
+</div>
+
+<div class="stage-wrap">
+  <div class="stage-frame">
+    <canvas id="ring" width="780" height="360"></canvas>
+    <p class="overlay-msg" id="msg"></p>
+    <div class="has-text-centered">
+      <button class="button is-small btn-restart" id="restartBtn">Fight again</button>
+    </div>
+  </div>
+</div>
+
+<div class="keys">
+  <span><span class="key">A</span> <span class="key">D</span> move</span>
+  <span><span class="key">W</span> punch</span>
+  <span><span class="key">S</span> block</span>
+</div>
+
+<p class="footer-note">built with Bulma · canvas rendering · keyboard only</p>
+
+<script>
+(function(){
+  const canvas = document.getElementById('ring');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const GROUND = H - 60;
+
+  const hp1El = document.getElementById('hp1');
+  const hp2El = document.getElementById('hp2');
+  const hp1Label = document.getElementById('hp1Label');
+  const hp2Label = document.getElementById('hp2Label');
+  const timerEl = document.getElementById('timer');
+  const msgEl = document.getElementById('msg');
+  const restartBtn = document.getElementById('restartBtn');
+
+  const PUNCH_RANGE = 70;
+  const PUNCH_COOLDOWN = 32;   // frames
+  const PUNCH_ACTIVE = 8;      // frames the fist is "out"
+  const PUNCH_DAMAGE = 9;
+  const BLOCK_REDUCTION = 0.75;
+  const MOVE_SPEED = 3.4;
+  const ROUND_SECONDS = 60;
+
+  let gameOver = false;
+  let frame = 0;
+  let secondsLeft = ROUND_SECONDS;
+  let lastTickTime = performance.now();
+
+  function makeFighter(x, color, facing) {
+    return {
+      x, y: GROUND, w: 40, h: 76,
+      color, facing,           // 1 = facing right, -1 = facing left
+      hp: 100,
+      punching: 0,             // frames remaining of active punch
+      cooldown: 0,
+      blocking: false,
+      hitFlash: 0,
+      stagger: 0
+    };
+  }
+
+  const p1 = makeFighter(220, '#e0555a', 1);
+  const p2 = makeFighter(560, '#4f8ff0', -1);
+
+  const keys = {};
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['w','a','s','d'].includes(k)) { keys[k] = true; e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (['w','a','s','d'].includes(k)) keys[k] = false;
+  });
+
+  restartBtn.addEventListener('click', resetMatch);
+
+  function resetMatch() {
+    p1.x = 220; p1.hp = 100; p1.cooldown = 0; p1.punching = 0; p1.blocking = false; p1.hitFlash = 0; p1.stagger = 0;
+    p2.x = 560; p2.hp = 100; p2.cooldown = 0; p2.punching = 0; p2.blocking = false; p2.hitFlash = 0; p2.stagger = 0;
+    secondsLeft = ROUND_SECONDS;
+    lastTickTime = performance.now();
+    gameOver = false;
+    msgEl.textContent = '';
+    restartBtn.style.display = 'none';
+    updateBars();
+  }
+
+  function updateBars() {
+    hp1El.style.width = Math.max(0, p1.hp) + '%';
+    hp2El.style.width = Math.max(0, p2.hp) + '%';
+    hp1Label.textContent = Math.max(0, Math.round(p1.hp));
+    hp2Label.textContent = Math.max(0, Math.round(p2.hp));
+  }
+
+  function distanceBetween() {
+    return Math.abs((p1.x) - (p2.x));
+  }
+
+  function tryLandPunch(attacker, defender) {
+    if (attacker.punching !== PUNCH_ACTIVE) return; // only checks on the frame the swing starts
+    const dist = distanceBetween();
+    const facingRight = attacker.facing === 1 ? attacker.x < defender.x : attacker.x > defender.x;
+    if (dist <= PUNCH_RANGE && facingRight) {
+      let dmg = PUNCH_DAMAGE;
+      if (defender.blocking) dmg *= (1 - BLOCK_REDUCTION);
+      defender.hp -= dmg;
+      defender.hitFlash = 8;
+      defender.stagger = defender.blocking ? 3 : 8;
+    }
+  }
+
+  // ---- Player control ----
+  function updatePlayer() {
+    if (p1.stagger > 0) { p1.stagger--; }
+    else {
+      if (keys['a']) { p1.x -= MOVE_SPEED; p1.facing = (p1.x < p2.x) ? 1 : p1.facing; }
+      if (keys['d']) { p1.x += MOVE_SPEED; p1.facing = (p1.x < p2.x) ? 1 : -1; }
+    }
+    p1.facing = p1.x < p2.x ? 1 : -1;
+
+    p1.blocking = !!keys['s'] && p1.punching === 0;
+
+    if (p1.cooldown > 0) p1.cooldown--;
+    if (p1.punching > 0) p1.punching--;
+
+    if (keys['w'] && p1.cooldown === 0 && !p1.blocking) {
+      p1.punching = PUNCH_ACTIVE;
+      p1.cooldown = PUNCH_COOLDOWN;
+    }
+
+    tryLandPunch(p1, p2);
+
+    p1.x = Math.max(40, Math.min(W - 40, p1.x));
+  }
+
+  // ---- Simple AI opponent ----
+  let aiState = 'approach';
+  let aiTimer = 0;
+
+  function updateAI() {
+    if (p2.stagger > 0) { p2.stagger--; }
+
+    p2.facing = p2.x < p1.x ? 1 : -1;
+
+    if (p2.cooldown > 0) p2.cooldown--;
+    if (p2.punching > 0) p2.punching--;
+
+    aiTimer--;
+    if (aiTimer <= 0) {
+      const dist = distanceBetween();
+      const roll = Math.random();
+
+      if (dist > PUNCH_RANGE + 10) {
+        aiState = 'approach';
+      } else if (dist < PUNCH_RANGE - 30) {
+        aiState = roll < 0.4 ? 'retreat' : 'attack';
+      } else {
+        aiState = roll < 0.55 ? 'attack' : (roll < 0.8 ? 'block' : 'retreat');
+      }
+      aiTimer = 18 + Math.floor(Math.random() * 30);
+    }
+
+    p2.blocking = false;
+
+    if (p2.stagger === 0) {
+      if (aiState === 'approach') {
+        p2.x += (p2.x > p1.x ? -1 : 1) * MOVE_SPEED * 0.9;
+      } else if (aiState === 'retreat') {
+        p2.x += (p2.x > p1.x ? 1 : -1) * MOVE_SPEED * 0.8;
+      } else if (aiState === 'block') {
+        p2.blocking = true;
+      } else if (aiState === 'attack') {
+        const dist = distanceBetween();
+        if (dist <= PUNCH_RANGE + 6 && p2.cooldown === 0) {
+          p2.punching = PUNCH_ACTIVE;
+          p2.cooldown = PUNCH_COOLDOWN + 6;
+        } else if (dist > PUNCH_RANGE) {
+          p2.x += (p2.x > p1.x ? -1 : 1) * MOVE_SPEED * 0.9;
+        }
+      }
+    }
+
+    tryLandPunch(p2, p1);
+
+    p2.x = Math.max(40, Math.min(W - 40, p2.x));
+  }
+
+  function checkRoundEnd() {
+    if (gameOver) return;
+    if (p1.hp <= 0 || p2.hp <= 0) {
+      gameOver = true;
+      if (p1.hp <= 0 && p2.hp <= 0) msgEl.textContent = 'Double knockout';
+      else if (p1.hp <= 0) msgEl.textContent = 'CPU wins by KO';
+      else msgEl.textContent = 'You win by KO';
+      restartBtn.style.display = 'inline-block';
+    } else if (secondsLeft <= 0) {
+      gameOver = true;
+      if (p1.hp > p2.hp) msgEl.textContent = 'You win on points';
+      else if (p2.hp > p1.hp) msgEl.textContent = 'CPU wins on points';
+      else msgEl.textContent = 'Draw';
+      restartBtn.style.display = 'inline-block';
+    }
+  }
+
+  function updateTimer(now) {
+    if (gameOver) return;
+    if (now - lastTickTime >= 1000) {
+      lastTickTime = now;
+      secondsLeft = Math.max(0, secondsLeft - 1);
+      timerEl.textContent = secondsLeft;
+    }
+  }
+
+  // ---- Drawing ----
+  function drawRing() {
+    ctx.fillStyle = '#e8e4da';
+    ctx.fillRect(0, 0, W, H);
+
+    // canvas mat
+    ctx.fillStyle = '#d8d2c2';
+    ctx.fillRect(0, GROUND, W, H - GROUND);
+
+    // mat lines
+    ctx.strokeStyle = '#c7c0ac';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 30) {
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+
+    // ropes
+    ctx.strokeStyle = '#c0524f';
+    ctx.lineWidth = 3;
+    [0.28, 0.4, 0.52].forEach((f) => {
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND * f);
+      ctx.lineTo(W, GROUND * f);
+      ctx.stroke();
+    });
+
+    // corner posts
+    ctx.fillStyle = '#b3453f';
+    ctx.fillRect(6, GROUND * 0.22, 10, GROUND * 0.8);
+    ctx.fillRect(W - 16, GROUND * 0.22, 10, GROUND * 0.8);
+  }
+
+  function drawFighter(f) {
+    ctx.save();
+    const flashOn = f.hitFlash > 0 && Math.floor(f.hitFlash / 2) % 2 === 0;
+    const bodyColor = flashOn ? '#ffffff' : f.color;
+    if (f.hitFlash > 0) f.hitFlash--;
+
+    const bob = f.stagger > 0 ? Math.sin(frame * 0.9) * 3 : 0;
+    const baseY = f.y - f.h + bob;
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y + 6, 20, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // legs
+    ctx.fillStyle = '#2b2b2b';
+    ctx.fillRect(f.x - 14, baseY + 48, 10, 28);
+    ctx.fillRect(f.x + 4, baseY + 48, 10, 28);
+
+    // torso
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(f.x - 16, baseY + 14, 32, 40);
+
+    // head
+    ctx.fillStyle = '#e8c9a0';
+    ctx.fillRect(f.x - 10, baseY, 20, 18);
+
+    // guard block indicator (raised gloves near face)
+    const punchOut = f.punching > 0 ? 16 * f.facing : 0;
+
+    // back arm/glove (guard position, stays up if blocking)
+    ctx.fillStyle = bodyColor;
+    const guardLift = f.blocking ? 6 : 0;
+    ctx.fillRect(f.x - 16 - (f.facing === 1 ? 4 : 0), baseY + 12 - guardLift, 10, 16);
+
+    // front arm/glove (the punching one)
+    ctx.save();
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(f.x + (f.facing === 1 ? 6 : -16) + punchOut, baseY + 16, 10, 14);
+    ctx.restore();
+
+    // gloves (fists)
+    ctx.fillStyle = '#c0392b';
+    const fistX = f.x + (f.facing === 1 ? 6 : -16) + punchOut + (f.facing === 1 ? 8 : -4);
+    ctx.beginPath();
+    ctx.arc(fistX, baseY + 22, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    const backFistX = f.x - 16 - (f.facing === 1 ? 4 : 0) + (f.facing === 1 ? -2 : 8);
+    ctx.beginPath();
+    ctx.arc(backFistX, baseY + 18 - guardLift, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function draw() {
+    drawRing();
+    drawFighter(p1);
+    drawFighter(p2);
+  }
+
+  function loop(now) {
+    frame++;
+    if (!gameOver) {
+      updatePlayer();
+      updateAI();
+      updateBars();
+      updateTimer(now);
+      checkRoundEnd();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  updateBars();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
