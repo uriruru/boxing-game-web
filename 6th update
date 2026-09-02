@@ -1,22 +1,28 @@
-<!-- Loads Bulma if your page doesn't already include it — remove this line if it does -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+<!-- Bulma removed: this section is fully self-contained to prevent global CSS/font conflicts. -->
 
 <style>
-  :root{
-    --ink:#f4f4f4;
-    --p1:#e0555a;
-    --p2:#4f8ff0;
+  .reibox-wrap{
+    --reibox-ink:#f4f4f4;
+    --reibox-p1:#e0555a;
+    --reibox-p2:#4f8ff0;
   }
 
-  .boxingclass-wrap{
+  .reibox-wrap,
+  .reibox-wrap * {
+    box-sizing:border-box;
+  }
+
+  .reibox-wrap{
     display:flex;
     justify-content:center;
     padding:20px 12px;
     background:#e8e4da;
     font-family:'Courier New', monospace;
+    font-size:16px;
+    box-sizing:border-box;
   }
 
-  .boxingclass-frame{
+  .reibox-frame{
     position:relative;
     width:100%;
     max-width:800px;
@@ -26,7 +32,7 @@
     line-height:0;
   }
 
-  #ring{
+  .reibox-wrap #reibox-ring{
     display:block;
     background:#e8e4da;
     width:100%;
@@ -34,7 +40,7 @@
   }
 
   /* ---- HUD overlay, drawn directly on top of the canvas ---- */
-  .boxingclass-hud{
+  .reibox-hud{
     position:absolute;
     top:10px;
     left:10px;
@@ -45,9 +51,9 @@
     pointer-events:none;
   }
 
-  .boxingclass-bar{ flex:1; }
+  .reibox-bar{ flex:1; }
 
-  .boxingclass-track{
+  .reibox-track{
     height:9px;
     background:rgba(0,0,0,0.18);
     border:1px solid rgba(0,0,0,0.25);
@@ -55,17 +61,17 @@
     overflow:hidden;
   }
 
-  .boxingclass-fill{
+  .reibox-fill{
     height:100%;
     transition:width 0.15s ease-out;
   }
 
-  .boxingclass-fill-p1{ background:var(--p1); }
-  .boxingclass-fill-p2{ background:var(--p2); }
+  .reibox-fill-p1{ background:var(--reibox-p1); }
+  .reibox-fill-p2{ background:var(--reibox-p2); }
 
-  .boxingclass-bar.p2 .boxingclass-track{ direction:rtl; }
+  .reibox-wrap .reibox-bar.p2 .reibox-track{ direction:rtl; }
 
-  #timer{
+  .reibox-wrap #reibox-timer{
     color:#3a3a3a;
     font-size:0.85rem;
     min-width:26px;
@@ -73,7 +79,7 @@
   }
 
   /* ---- End-of-round overlay ---- */
-  .boxingclass-msg{
+  .reibox-msg{
     position:absolute;
     top:50%;
     left:50%;
@@ -82,25 +88,36 @@
     pointer-events:none;
   }
 
-  .boxingclass-text{
+  .reibox-text{
     color:#2b2b2b;
     font-size:1.3rem;
     margin:0 0 10px 0;
     text-shadow:0 1px 6px rgba(255,255,255,0.8);
   }
 
-  .boxingclass-restart{
+  .reibox-restart{
     display:none;
     pointer-events:auto;
+    border:1px solid rgba(0,0,0,.22);
+    border-radius:4px;
+    padding:6px 10px;
+    background:#fff;
+    color:#222;
+    font:600 12px/1.2 'Courier New', monospace;
+    cursor:pointer;
   }
 
-  .boxingclass-loading{
+  .reibox-restart:hover{
+    background:#f1f1f1;
+  }
+
+  .reibox-loading{
     color:#5a5a5a;
     font-size:0.85rem;
   }
 
   /* ---- Touch controls, overlaid on the canvas itself ---- */
-  .boxingclass-touch{
+  .reibox-touch{
     display:none;
     position:absolute;
     left:0;
@@ -112,7 +129,7 @@
     pointer-events:none;
   }
 
-  .boxingclass-top-actions{
+  .reibox-top-actions{
     position:absolute;
     top:22px;
     right:12px;
@@ -122,17 +139,17 @@
     pointer-events:none;
   }
 
-  .boxingclass-top-actions .boxingclass-btn{
+  .reibox-top-actions .reibox-btn{
     position:relative;
     left:auto !important;
     top:auto !important;
   }
 
   @media (hover:none) and (pointer:coarse), (max-width:680px){
-    .boxingclass-touch{ display:flex; }
+    .reibox-touch{ display:flex; }
   }
 
-  .boxingclass-cluster{
+  .reibox-cluster{
     position:relative;
     width:88px;
     height:84px;
@@ -142,12 +159,17 @@
     pointer-events:auto;
   }
 
-  .boxingclass-cluster.actions{
+  .reibox-cluster.actions{
     width:88px;
     height:84px;
   }
 
-  .boxingclass-btn{
+  .reibox-wrap button.reibox-btn,
+  .reibox-wrap .reibox-restart{
+    font-family:'Courier New', monospace;
+  }
+
+  .reibox-btn{
     position:absolute;
     display:flex;
     align-items:center;
@@ -165,75 +187,75 @@
     backdrop-filter:blur(2px);
   }
 
-  .boxingclass-btn:active,
-  .boxingclass-btn.boxingclass-active{
+  .reibox-btn:active,
+  .reibox-btn.reibox-active{
     background:rgba(30,31,34,0.68);
     box-shadow:0 1px 0 rgba(0,0,0,0.28);
     transform:translateY(2px);
   }
 
   /* Small PS-style D-pad: A/D are still usable for double-tap dash. */
-  .boxingclass-move{
+  .reibox-move{
     width:30px;
     height:30px;
     border-radius:9px;
     font-size:.82rem;
   }
-  .boxingclass-move.left{  left:0;  bottom:38px; }
-  .boxingclass-move.right{ left:36px; bottom:38px; }
+  .reibox-move.left{  left:0;  bottom:38px; }
+  .reibox-move.right{ left:36px; bottom:38px; }
 
   /* Removed dedicated DASH button: double-tap A/D triggers dash. */
 
   /* PS4-style face buttons: Square=Attack, Triangle=Heavy, Circle=Magic, X=Jump. */
-   .boxingclass-punch{
+   .reibox-punch{
     left:0;
     top:12px;
     border-radius:11px;
     background:rgba(90,35,35,0.48);
   }
 
-  .boxingclass-heavy{
+  .reibox-heavy{
     left:0;
     top:0;
     background:rgba(108,62,24,0.50);
     border-color:rgba(255,210,120,0.48);
   }
-  .boxingclass-heavy.boxingclass-active{
+  .reibox-heavy.reibox-active{
     background:rgba(150,78,20,0.96);
   }
 
-  .boxingclass-magic{
+  .reibox-magic{
     left:0;
     top:0;
     background:rgba(84,34,126,0.52);
     border-color:rgba(220,160,255,0.58);
     color:#f7eaff;
   }
-  .boxingclass-magic.boxingclass-active{
+  .reibox-magic.reibox-active{
     background:rgba(124,48,190,0.98);
   }
 
-  .boxingclass-jump{
+  .reibox-jump{
     left:40px;
     top:12px;
     background:rgba(34,52,79,0.48);
   }
 
 
-   .boxingclass-top-actions .boxingclass-heavy,
-  .boxingclass-top-actions .boxingclass-magic{
+   .reibox-top-actions .reibox-heavy,
+  .reibox-top-actions .reibox-magic{
     width:34px;
     height:34px;
     font-size:.82rem;
     pointer-events:auto;
   }
 
-  .boxingclass-face-symbol{
+  .reibox-face-symbol{
     font-size:.92rem;
     line-height:1;
   }
 
-  .boxingclass-face-label{
+  .reibox-face-label{
     position:absolute;
     inset:auto 0 3px;
     text-align:center;
@@ -246,38 +268,38 @@
 </style>
 </head>
 
-<div class="boxingclass-wrap">
-  <div class="boxingclass-frame">
-    <canvas id="ring" width="780" height="360"></canvas>
+<div class="reibox-wrap">
+  <div class="reibox-frame">
+    <canvas id="reibox-ring" width="780" height="360"></canvas>
 
-    <div class="boxingclass-hud">
-      <div class="boxingclass-bar p1">
-        <div class="boxingclass-track"><div class="boxingclass-fill boxingclass-fill-p1" id="hp1" style="width:100%"></div></div>
+    <div class="reibox-hud">
+      <div class="reibox-bar p1">
+        <div class="reibox-track"><div class="reibox-fill reibox-fill-p1" id="reibox-hp1" style="width:100%"></div></div>
       </div>
-      <span id="timer">60</span>
-      <div class="boxingclass-bar p2">
-        <div class="boxingclass-track"><div class="boxingclass-fill boxingclass-fill-p2" id="hp2" style="width:100%"></div></div>
+      <span id="reibox-timer">60</span>
+      <div class="reibox-bar p2">
+        <div class="reibox-track"><div class="reibox-fill reibox-fill-p2" id="reibox-hp2" style="width:100%"></div></div>
       </div>
     </div>
 
-    <div class="boxingclass-msg">
-      <p class="boxingclass-text" id="msg"></p>
-      <button class="button is-small boxingclass-restart" id="restartBtn">Fight again</button>
+    <div class="reibox-msg">
+      <p class="reibox-text" id="reibox-msg"></p>
+      <button class="reibox-restart" id="reibox-restartBtn">Fight again</button>
     </div>
 
-    <div class="boxingclass-top-actions">
-      <button type="button" class="boxingclass-btn boxingclass-heavy" data-key="e" aria-label="Heavy">△<span class="boxingclass-face-label">HEAVY</span></button>
-      <button type="button" class="boxingclass-btn boxingclass-magic" data-key="q" aria-label="Magic">○<span class="boxingclass-face-label">MAGIC</span></button>
+    <div class="reibox-top-actions">
+      <button type="button" class="reibox-btn reibox-heavy" data-key="e" aria-label="Heavy">△<span class="reibox-face-label">HEAVY</span></button>
+      <button type="button" class="reibox-btn reibox-magic" data-key="q" aria-label="Magic">○<span class="reibox-face-label">MAGIC</span></button>
     </div>
 
-    <div class="boxingclass-touch">
-      <div class="boxingclass-cluster">
-        <button type="button" class="boxingclass-btn boxingclass-move left"  data-key="a" aria-label="Left">◀</button>
-        <button type="button" class="boxingclass-btn boxingclass-move right" data-key="d" aria-label="Right">▶</button>
+    <div class="reibox-touch">
+      <div class="reibox-cluster">
+        <button type="button" class="reibox-btn reibox-move left"  data-key="a" aria-label="Left">◀</button>
+        <button type="button" class="reibox-btn reibox-move right" data-key="d" aria-label="Right">▶</button>
       </div>
-      <div class="boxingclass-cluster actions">
-        <button type="button" class="boxingclass-btn boxingclass-punch" data-key="w" aria-label="Attack">□<span class="boxingclass-face-label">ATTACK</span></button>
-        <button type="button" class="boxingclass-btn boxingclass-jump"  data-key="s" aria-label="Jump">✕<span class="boxingclass-face-label">JUMP</span></button>
+      <div class="reibox-cluster actions">
+        <button type="button" class="reibox-btn reibox-punch" data-key="w" aria-label="Attack">□<span class="reibox-face-label">ATTACK</span></button>
+        <button type="button" class="reibox-btn reibox-jump"  data-key="s" aria-label="Jump">✕<span class="reibox-face-label">JUMP</span></button>
       </div>
     </div>
   </div>
@@ -285,16 +307,16 @@
 
 <script>
 (function(){
-  const canvas = document.getElementById('ring');
+  const canvas = document.getElementById('reibox-ring');
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const GROUND = H - 60;
 
-  const hp1El = document.getElementById('hp1');
-  const hp2El = document.getElementById('hp2');
-  const timerEl = document.getElementById('timer');
-  const msgEl = document.getElementById('msg');
-  const restartBtn = document.getElementById('restartBtn');
+  const hp1El = document.getElementById('reibox-hp1');
+  const hp2El = document.getElementById('reibox-hp2');
+  const timerEl = document.getElementById('reibox-timer');
+  const msgEl = document.getElementById('reibox-msg');
+  const restartBtn = document.getElementById('reibox-restartBtn');
 
   const PUNCH_RANGE = 70;
   const PUNCH_COOLDOWN = 32;   // frames
@@ -531,7 +553,7 @@
 
   // ---- Touch / on-screen controls ----
   // Same "keys" object as the keyboard, so movement/punch/jump/dash logic is untouched.
-  document.querySelectorAll('.boxingclass-btn').forEach((btn) => {
+  document.querySelectorAll('.reibox-btn').forEach((btn) => {
     const k = btn.getAttribute('data-key');
 
     const press = (e) => {
@@ -547,12 +569,12 @@
         if (k === 's' && !keys[k]) jumpPressed = true;
         keys[k] = true;
       }
-      btn.classList.add('boxingclass-active');
+      btn.classList.add('reibox-active');
     };
     const release = (e) => {
       e.preventDefault();
       if (k !== 'dash') keys[k] = false;
-      btn.classList.remove('boxingclass-active');
+      btn.classList.remove('reibox-active');
     };
 
     btn.addEventListener('touchstart', press, { passive: false });
@@ -567,7 +589,7 @@
 
   window.addEventListener('blur', () => {
     Object.keys(keys).forEach((k) => keys[k] = false);
-    document.querySelectorAll('.boxingclass-btn').forEach((btn) => btn.classList.remove('boxingclass-active'));
+    document.querySelectorAll('.reibox-btn').forEach((btn) => btn.classList.remove('reibox-active'));
   });
 
   restartBtn.addEventListener('click', resetMatch);
